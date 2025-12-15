@@ -1,0 +1,11 @@
+# Redireciona todas as requisições para index.php
+# Isso permite criar URLs "bonitas" como /api/contatos ao invés de /index.php?url=api/contatos
+
+RewriteEngine On
+
+# Se o arquivo ou diretório não existe fisicamente
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Redireciona para index.php passando a URL como parâmetro
+RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
