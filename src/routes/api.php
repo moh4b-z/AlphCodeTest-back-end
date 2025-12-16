@@ -88,29 +88,6 @@ class Router {
                     }
                     break;
                     
-                case 'POST':
-                    // POST /api/profissoes
-                    $this->profissaoController->store();
-                    break;
-                    
-                case 'PUT':
-                    if (isset($urlParts[2]) && is_numeric($urlParts[2])) {
-                        // PUT /api/profissoes/:id
-                        $this->profissaoController->update($urlParts[2]);
-                    } else {
-                        $this->sendError(400, 'ID é obrigatório para atualizar');
-                    }
-                    break;
-                    
-                case 'DELETE':
-                    if (isset($urlParts[2]) && is_numeric($urlParts[2])) {
-                        // DELETE /api/profissoes/:id
-                        $this->profissaoController->destroy($urlParts[2]);
-                    } else {
-                        $this->sendError(400, 'ID é obrigatório para deletar');
-                    }
-                    break;
-                    
                 default:
                     $this->sendError(405, 'Método não permitido');
             }

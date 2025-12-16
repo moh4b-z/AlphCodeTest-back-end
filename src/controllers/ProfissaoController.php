@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../models/Profissao.php';
+require_once __DIR__ . '/../utils/ApiMessages.php';
 
 class ProfissaoController {
     
@@ -12,110 +13,25 @@ class ProfissaoController {
     
     public function index() {
         $profissoes = $this->model->getAll();
-        $this->sendResponse(200, [
-            'success' => true,
-            'data' => $profissoes
-        ]);
+        $response = ApiMessages::successWithData($profissoes);
+        ApiMessages::sendResponse($response['status_code'], $response);
     }
     
     public function buscarPorNome($nome) {
         $profissoes = $this->model->buscarPorNome($nome);
-        $this->sendResponse(200, [
-            'success' => true,
-            'data' => $profissoes
-        ]);
+        $response = ApiMessages::successWithData($profissoes);
+        ApiMessages::sendResponse($response['status_code'], $response);
     }
     
     public function show($id) {
         $profissao = $this->model->getById($id);
         
         if ($profissao) {
-            $this->sendResponse(200, [
-                'success' => true,
-                'data' => $profissao
-            ]);
+            $response = ApiMessages::successWithData($profissao);
+            ApiMessages::sendResponse($response['status_code'], $response);
         } else {
-            $this->sendResponse(404, [
-                'success' => false,
-                'message' => 'Profissão não encontrada'
-            ]);
+            $response = ApiMessages::ERROR_NOT_FOUND;
+            ApiMessages::sendResponse($response['status_code'], $response);
         }
-    }
-    
-    public function store() {
-        $data = json_decode(file_get_contents('php://input'), true);
-        
-        if (!isset($data['nome'])) {
-            $this->sendResponse(400, [
-                'success' => false,
-                'message' => 'Nome é obrigatório'
-            ]);
-            return;
-        }
-        
-        $profissao = $this->model->create($data);
-        
-        if ($profissao) {
-            $this->sendResponse(201, [
-                'success' => true,
-                'message' => 'Profissão criada com sucesso',
-                'data' => $profissao
-            ]);
-        } else {
-            $this->sendResponse(500, [
-                'success' => false,
-                'message' => 'Erro ao criar profissão'
-            ]);
-        }
-    }
-    
-    public function update($id) {
-        $data = json_decode(file_get_contents('php://input'), true);
-        
-        if (!isset($data['nome'])) {
-            $this->sendResponse(400, [
-                'success' => false,
-                'message' => 'Nome é obrigatório'
-            ]);
-            return;
-        }
-        
-        $profissao = $this->model->update($id, $data);
-        
-        if ($profissao) {
-            $this->sendResponse(200, [
-                'success' => true,
-                'message' => 'Profissão atualizada com sucesso',
-                'data' => $profissao
-            ]);
-        } else {
-            $this->sendResponse(500, [
-                'success' => false,
-                'message' => 'Erro ao atualizar profissão'
-            ]);
-        }
-    }
-    
-    public function destroy($id) {
-        $result = $this->model->delete($id);
-        
-        if ($result) {
-            $this->sendResponse(200, [
-                'success' => true,
-                'message' => 'Profissão deletada com sucesso'
-            ]);
-        } else {
-            $this->sendResponse(500, [
-                'success' => false,
-                'message' => 'Erro ao deletar profissão'
-            ]);
-        }
-    }
-    
-    private function sendResponse($statusCode, $data) {
-        http_response_code($statusCode);
-        header('Content-Type: application/json');
-        echo json_encode($data, JSON_UNESCAPED_UNICODE);
-        exit;
     }
 }

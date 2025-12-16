@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../models/Contato.php';
+require_once __DIR__ . '/../utils/ApiMessages.php';
 
 class ContatoController {
     
@@ -12,33 +13,25 @@ class ContatoController {
     
     public function index() {
         $contatos = $this->model->getAll();
-        $this->sendResponse(200, [
-            'success' => true,
-            'data' => $contatos
-        ]);
+        $response = ApiMessages::successWithData($contatos);
+        ApiMessages::sendResponse($response['status_code'], $response);
     }
     
     public function buscarPorNome($nome) {
         $contatos = $this->model->buscarPorNome($nome);
-        $this->sendResponse(200, [
-            'success' => true,
-            'data' => $contatos
-        ]);
+        $response = ApiMessages::successWithData($contatos);
+        ApiMessages::sendResponse($response['status_code'], $response);
     }
     
     public function show($id) {
         $contato = $this->model->getById($id);
         
         if ($contato) {
-            $this->sendResponse(200, [
-                'success' => true,
-                'data' => $contato
-            ]);
+            $response = ApiMessages::successWithData($contato);
+            ApiMessages::sendResponse($response['status_code'], $response);
         } else {
-            $this->sendResponse(404, [
-                'success' => false,
-                'message' => 'Contato não encontrado'
-            ]);
+            $response = ApiMessages::ERROR_NOT_FOUND;
+            ApiMessages::sendResponse($response['status_code'], $response);
         }
     }
     
@@ -50,26 +43,31 @@ class ContatoController {
         if (!isset($data['nome']) || !isset($data['email']) || 
             !isset($data['data_nascimento']) || !isset($data['profissao']) ||
             !isset($data['telefone_celular']['numero'])) {
-            $this->sendResponse(400, [
-                'success' => false,
-                'message' => 'Nome, email, data de nascimento, profissão e telefone celular são obrigatórios'
-            ]);
+            $response = ApiMessages::ERROR_REQUIRED_FIELDS;
+            ApiMessages::sendResponse($response['status_code'], $response);
             return;
         }
         
-        $contato = $this->model->create($data);
-        
-        if ($contato) {
-            $this->sendResponse(201, [
-                'success' => true,
-                'message' => 'Contato criado com sucesso',
-                'data' => $contato
-            ]);
-        } else {
-            $this->sendResponse(500, [
-                'success' => false,
-                'message' => 'Erro ao criar contato'
-            ]);
+        try {
+            $contato = $this->model->create($data);
+            
+            if ($contato) {
+                $response = ApiMessages::successWithData($contato, 'Contato criado com sucesso', 201);
+                ApiMessages::sendResponse($response['status_code'], $response);
+            } else {
+                $response = ApiMessages::ERROR_INTERNAL_SERVER_MODEL;
+                ApiMessages::sendResponse($response['status_code'], $response);
+            }
+        } catch (Exception $e) {
+            // Verifica se é erro de email duplicado
+            if (strpos($e->getMessage(), 'Duplicate entry') !== false && strpos($e->getMessage(), 'email') !== false) {
+                $response = ApiMessages::ERROR_EMAIL_ALREADY_EXISTS;
+            } elseif (strpos($e->getMessage(), 'Duplicate entry') !== false) {
+                $response = ApiMessages::ERROR_PHONE_ALREADY_EXISTS;
+            } else {
+                $response = ApiMessages::ERROR_INTERNAL_SERVER_MODEL;
+            }
+            ApiMessages::sendResponse($response['status_code'], $response);
         }
     }
     
@@ -78,26 +76,30 @@ class ContatoController {
         
         // Validação: pelo menos um campo deve ser enviado
         if (empty($data)) {
-            $this->sendResponse(400, [
-                'success' => false,
-                'message' => 'Nenhum campo foi enviado para atualização'
-            ]);
+            $response = ApiMessages::ERROR_REQUIRED_FIELDS;
+            ApiMessages::sendResponse($response['status_code'], $response);
             return;
         }
         
-        $contato = $this->model->update($id, $data);
-        
-        if ($contato) {
-            $this->sendResponse(200, [
-                'success' => true,
-                'message' => 'Contato atualizado com sucesso',
-                'data' => $contato
-            ]);
-        } else {
-            $this->sendResponse(500, [
-                'success' => false,
-                'message' => 'Erro ao atualizar contato'
-            ]);
+        try {
+            $contato = $this->model->update($id, $data);
+            
+            if ($contato) {
+                $response = ApiMessages::successWithData($contato, 'Contato atualizado com sucesso');
+                ApiMessages::sendResponse($response['status_code'], $response);
+            } else {
+                $response = ApiMessages::ERROR_INTERNAL_SERVER_MODEL;
+                ApiMessages::sendResponse($response['status_code'], $response);
+            }
+        } catch (Exception $e) {
+            if (strpos($e->getMessage(), 'Duplicate entry') !== false && strpos($e->getMessage(), 'email') !== false) {
+                $response = ApiMessages::ERROR_EMAIL_ALREADY_EXISTS;
+            } elseif (strpos($e->getMessage(), 'Duplicate entry') !== false) {
+                $response = ApiMessages::ERROR_PHONE_ALREADY_EXISTS;
+            } else {
+                $response = ApiMessages::ERROR_INTERNAL_SERVER_MODEL;
+            }
+            ApiMessages::sendResponse($response['status_code'], $response);
         }
     }
     
@@ -105,22 +107,11 @@ class ContatoController {
         $result = $this->model->delete($id);
         
         if ($result) {
-            $this->sendResponse(200, [
-                'success' => true,
-                'message' => 'Contato deletado com sucesso'
-            ]);
+            $response = ApiMessages::SUCCESS_DELETE_ITEM;
+            ApiMessages::sendResponse($response['status_code'], $response);
         } else {
-            $this->sendResponse(500, [
-                'success' => false,
-                'message' => 'Erro ao deletar contato'
-            ]);
+            $response = ApiMessages::ERROR_NOT_DELETE;
+            ApiMessages::sendResponse($response['status_code'], $response);
         }
-    }
-    
-    private function sendResponse($statusCode, $data) {
-        http_response_code($statusCode);
-        header('Content-Type: application/json');
-        echo json_encode($data, JSON_UNESCAPED_UNICODE);
-        exit;
     }
 }

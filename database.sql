@@ -213,15 +213,25 @@ BEGIN
     START TRANSACTION;
     
     -- Atualizações simples (Nome, Email, Nascimento, Notificação)
-    UPDATE contatos SET
-        nome = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(p_json, '$.nome')), nome),
-        email = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(p_json, '$.email')), email),
-        data_nascimento = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(p_json, '$.data_nascimento')), data_nascimento),
-        permite_notificacao_email = COALESCE(JSON_EXTRACT(p_json, '$.permite_notificacao_email'), permite_notificacao_email)
-    WHERE id = p_id_contato;
+    -- Só atualiza os campos que foram enviados no JSON
+    IF JSON_CONTAINS_PATH(p_json, 'one', '$.nome') THEN
+        UPDATE contatos SET nome = JSON_UNQUOTE(JSON_EXTRACT(p_json, '$.nome')) WHERE id = p_id_contato;
+    END IF;
     
-    -- Atualiza Profissão
-    IF JSON_EXTRACT(p_json, '$.profissao') IS NOT NULL THEN
+    IF JSON_CONTAINS_PATH(p_json, 'one', '$.email') THEN
+        UPDATE contatos SET email = JSON_UNQUOTE(JSON_EXTRACT(p_json, '$.email')) WHERE id = p_id_contato;
+    END IF;
+    
+    IF JSON_CONTAINS_PATH(p_json, 'one', '$.data_nascimento') THEN
+        UPDATE contatos SET data_nascimento = JSON_UNQUOTE(JSON_EXTRACT(p_json, '$.data_nascimento')) WHERE id = p_id_contato;
+    END IF;
+    
+    IF JSON_CONTAINS_PATH(p_json, 'one', '$.permite_notificacao_email') THEN
+        UPDATE contatos SET permite_notificacao_email = JSON_EXTRACT(p_json, '$.permite_notificacao_email') WHERE id = p_id_contato;
+    END IF;
+    
+    -- Atualiza Profissão (só se foi enviada no JSON)
+    IF JSON_CONTAINS_PATH(p_json, 'one', '$.profissao') THEN
         SET v_id_profissao = (
             SELECT id FROM profissoes WHERE nome = JSON_UNQUOTE(JSON_EXTRACT(p_json, '$.profissao')) LIMIT 1
         );
@@ -232,44 +242,59 @@ BEGIN
         UPDATE contatos SET id_profissao = v_id_profissao WHERE id = p_id_contato;
     END IF;
     
-    -- Atualiza Celular
-    IF JSON_EXTRACT(p_json, '$.telefone_celular') IS NOT NULL THEN
-        UPDATE telefones t
-        INNER JOIN contatos_telefones ct ON t.id = ct.id_telefone
-        SET 
-            t.numero = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(p_json, '$.telefone_celular.numero')), t.numero),
-            t.tem_whatsapp = COALESCE(JSON_EXTRACT(p_json, '$.telefone_celular.tem_whatsapp'), t.tem_whatsapp),
-            t.permite_sms = COALESCE(JSON_EXTRACT(p_json, '$.telefone_celular.permite_sms'), t.permite_sms)
-        WHERE ct.id_contato = p_id_contato AND t.e_celular = TRUE;
+    -- Atualiza Celular (atualiza cada campo individualmente se foi enviado)
+    IF JSON_CONTAINS_PATH(p_json, 'one', '$.telefone_celular') THEN
+        IF JSON_CONTAINS_PATH(p_json, 'one', '$.telefone_celular.numero') THEN
+            UPDATE telefones t
+            INNER JOIN contatos_telefones ct ON t.id = ct.id_telefone
+            SET t.numero = JSON_UNQUOTE(JSON_EXTRACT(p_json, '$.telefone_celular.numero'))
+            WHERE ct.id_contato = p_id_contato AND t.e_celular = TRUE;
+        END IF;
+        
+        IF JSON_CONTAINS_PATH(p_json, 'one', '$.telefone_celular.tem_whatsapp') THEN
+            UPDATE telefones t
+            INNER JOIN contatos_telefones ct ON t.id = ct.id_telefone
+            SET t.tem_whatsapp = JSON_EXTRACT(p_json, '$.telefone_celular.tem_whatsapp')
+            WHERE ct.id_contato = p_id_contato AND t.e_celular = TRUE;
+        END IF;
+        
+        IF JSON_CONTAINS_PATH(p_json, 'one', '$.telefone_celular.permite_sms') THEN
+            UPDATE telefones t
+            INNER JOIN contatos_telefones ct ON t.id = ct.id_telefone
+            SET t.permite_sms = JSON_EXTRACT(p_json, '$.telefone_celular.permite_sms')
+            WHERE ct.id_contato = p_id_contato AND t.e_celular = TRUE;
+        END IF;
     END IF;
     
-    -- Atualiza ou Insere Fixo
-    SET v_numero_fixo = JSON_UNQUOTE(JSON_EXTRACT(p_json, '$.telefone_fixo.numero'));
-    
-    IF v_numero_fixo IS NOT NULL AND v_numero_fixo != 'null' THEN
-        -- Verifica se o contato já tem um telefone fixo vinculado
-        SET v_id_telefone_fixo = (
-            SELECT t.id FROM telefones t
-            INNER JOIN contatos_telefones ct ON t.id = ct.id_telefone
-            WHERE ct.id_contato = p_id_contato AND t.e_celular = FALSE
-            LIMIT 1
-        );
+    -- Atualiza ou Insere Fixo (só se foi enviado)
+    IF JSON_CONTAINS_PATH(p_json, 'one', '$.telefone_fixo.numero') THEN
+        SET v_numero_fixo = JSON_UNQUOTE(JSON_EXTRACT(p_json, '$.telefone_fixo.numero'));
         
-        IF v_id_telefone_fixo IS NOT NULL THEN
-            -- Se já tem, atualiza o número
-            UPDATE telefones SET numero = v_numero_fixo WHERE id = v_id_telefone_fixo;
-        ELSE
-            -- Se não tem, precisamos procurar se o número já existe no banco ou criar novo
-            SELECT id INTO v_id_telefone_fixo FROM telefones WHERE numero = v_numero_fixo AND e_celular = FALSE LIMIT 1;
+        IF v_numero_fixo IS NOT NULL AND v_numero_fixo != '' THEN
+            -- Verifica se o contato já tem um telefone fixo vinculado
+            SET v_id_telefone_fixo = (
+                SELECT t.id FROM telefones t
+                INNER JOIN contatos_telefones ct ON t.id = ct.id_telefone
+                WHERE ct.id_contato = p_id_contato AND t.e_celular = FALSE
+                LIMIT 1
+            );
             
-            IF v_id_telefone_fixo IS NULL THEN
-                INSERT INTO telefones (numero, e_celular, tem_whatsapp, permite_sms) 
-                VALUES (v_numero_fixo, FALSE, FALSE, FALSE);
-                SET v_id_telefone_fixo = LAST_INSERT_ID();
+            IF v_id_telefone_fixo IS NOT NULL THEN
+                -- Se já tem, atualiza o número
+                UPDATE telefones SET numero = v_numero_fixo WHERE id = v_id_telefone_fixo;
+            ELSE
+                -- Se não tem, precisamos procurar se o número já existe no banco ou criar novo
+                SELECT id INTO v_id_telefone_fixo FROM telefones WHERE numero = v_numero_fixo AND e_celular = FALSE LIMIT 1;
+                
+                IF v_id_telefone_fixo IS NULL THEN
+                    INSERT INTO telefones (numero, e_celular, tem_whatsapp, permite_sms) 
+                    VALUES (v_numero_fixo, FALSE, FALSE, FALSE);
+                    SET v_id_telefone_fixo = LAST_INSERT_ID();
+                END IF;
+                
+                -- Vincula
+                INSERT INTO contatos_telefones (id_contato, id_telefone) VALUES (p_id_contato, v_id_telefone_fixo);
             END IF;
-            
-            -- Vincula
-            INSERT INTO contatos_telefones (id_contato, id_telefone) VALUES (p_id_contato, v_id_telefone_fixo);
         END IF;
     END IF;
     

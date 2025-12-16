@@ -55,37 +55,6 @@ class Profissao {
         return [];
     }
     
-    public function create($data) {
-        $sql = "INSERT INTO profissoes (nome) VALUES (?)";
-        $stmt = $this->conn->prepare($sql);
-        $stmt->bind_param("s", $data['nome']);
-        
-        if ($stmt->execute()) {
-            $data['id'] = $this->conn->insert_id;
-            return $data;
-        }
-        return false;
-    }
-    
-    public function update($id, $data) {
-        $sql = "UPDATE profissoes SET nome = ? WHERE id = ?";
-        $stmt = $this->conn->prepare($sql);
-        $stmt->bind_param("si", $data['nome'], $id);
-        
-        if ($stmt->execute()) {
-            return $this->getById($id);
-        }
-        return false;
-    }
-    
-    public function delete($id) {
-        $sql = "DELETE FROM profissoes WHERE id = ?";
-        $stmt = $this->conn->prepare($sql);
-        $stmt->bind_param("i", $id);
-        
-        return $stmt->execute();
-    }
-    
     public function __destruct() {
         $this->conn->close();
     }

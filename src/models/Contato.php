@@ -83,6 +83,12 @@ class Contato {
             $row = $result->fetch_assoc();
             $idInserido = $row['id'];
             
+            // Limpa resultados pendentes da procedure
+            $stmt->close();
+            while ($this->conn->more_results()) {
+                $this->conn->next_result();
+            }
+            
             // Retorna o contato completo
             return $this->getById($idInserido);
         }
@@ -119,6 +125,12 @@ class Contato {
         $stmt->bind_param("is", $id, $json);
         
         if ($stmt->execute()) {
+            // Limpa resultados pendentes da procedure
+            $stmt->close();
+            while ($this->conn->more_results()) {
+                $this->conn->next_result();
+            }
+            
             return $this->getById($id);
         }
         return false;
